@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CryptoCurrencyTracker</string>
+    <string name="currency_list">Список криптовалют</string>
+</resources>
