@@ -66,10 +66,17 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.4")
     implementation ("androidx.compose.runtime:runtime-livedata:1.6.8")
     implementation ("io.coil-kt:coil-compose:2.0.0")
+    implementation ("androidx.compose.material:material:1.6.8")
+    implementation ("androidx.compose.material:material-icons-core:1.6.8")
+    implementation ("com.google.accompanist:accompanist-swiperefresh:0.35.1-alpha")
+    implementation ("androidx.navigation:navigation-compose:2.7.7")
+
 
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.navigation.runtime.ktx)
+    implementation(libs.androidx.navigation.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

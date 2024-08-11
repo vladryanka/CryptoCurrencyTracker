@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var usdList: MutableLiveData<List<Currency>> = MutableLiveData()
     private var rubList: MutableLiveData<List<Currency>> = MutableLiveData()
-    private var successfulDownload: Boolean = true
+    private var successfulDownload: MutableLiveData<Boolean> = MutableLiveData()
     private val apiFactory: ApiFactory = ApiFactory()
 
     public fun getUsdList(): LiveData<List<Currency>> {
@@ -22,10 +22,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     public fun getRubList(): LiveData<List<Currency>> {
         return rubList
     }
-    public fun getSuccessfulDownload():Boolean{
+    public fun getSuccessfulDownload():LiveData<Boolean>{
         return successfulDownload
     }
-
 
     fun loadUsd(){
         CoroutineScope(Dispatchers.Main).launch {
@@ -33,11 +32,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val response = withContext(Dispatchers.IO) {
                     apiFactory.apiService.loadUSDResponse()
                 }
-                successfulDownload=true
+                successfulDownload.postValue(true)
                 usdList.postValue(response)
 
             } catch (error: Throwable) {
-                successfulDownload=false
+                successfulDownload.postValue(false)
                 Log.d("Doing", error.toString())
             }
         }
@@ -48,12 +47,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val response = withContext(Dispatchers.IO) {
                     apiFactory.apiService.loadRUBResponse()
                 }
-                successfulDownload=true
+                successfulDownload.postValue(true)
                 rubList.postValue(response)
 
 
             } catch (error: Throwable) {
-                successfulDownload=false
+                successfulDownload.postValue(false)
                 Log.d("Doing", error.toString())
             }
         }
