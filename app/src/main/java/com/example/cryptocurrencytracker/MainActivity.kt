@@ -2,6 +2,7 @@ package com.example.cryptocurrencytracker
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -46,7 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -62,7 +65,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var viewModel: MainViewModel
     private lateinit var navController: NavHostController
-    private val currency:Currency = Currency("df","df","df","df",22f,52f)
 
     @SuppressLint("CoroutineCreationDuringComposition")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,15 +79,24 @@ class MainActivity : ComponentActivity() {
                     composable("CurrencySwitcherApp") {
                         CurrencySwitcherApp(viewModel, applicationContext, navController)
                     }
-                    composable("CurrencyInfoScreen") {
-                        CurrencyInfoScreen(navController = navController, currency = currency)
+                    composable("CurrencyInfoScreen/{currency}/{url}") { backStackEntry ->
+                        val currencyId = backStackEntry.arguments?.getString("currency")
+                        val url = backStackEntry.arguments?.getString("url")
+                        if (currencyId!=null&& url!=null){
+                            CurrencyInfoLogic(viewModel,
+                                application,
+                                navController,
+                                currencyId,
+                                url
+                            )
+                            }
+                        }
                     }
                 }
 
             }
         }
     }
-}
 
 @Composable
 fun CurrencySwitcherApp(
@@ -120,7 +131,7 @@ fun CurrencySwitcherApp(
             isUsdSelected = selectedCurrency == "USD"
         },
         successDownloading = successDownload,
-        onRetry = onRetry,wasConnectedOnce,
+        onRetry = onRetry, wasConnectedOnce,
         navController
     )
 }
@@ -133,7 +144,7 @@ fun CustomToolbar(
     onChipSelected: (String) -> Unit,
     successDownloading: Boolean,
     onRetry: () -> Unit,
-    wasConnectedOnce:Boolean,
+    wasConnectedOnce: Boolean,
     navController: NavHostController
 ) {
     var selectedCurrency by remember { mutableStateOf("USD") }
@@ -141,7 +152,7 @@ fun CustomToolbar(
     var refreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(successDownloading,wasConnectedOnce) {
+    LaunchedEffect(successDownloading, wasConnectedOnce) {
         if (!successDownloading && wasConnectedOnce) {
             snackbarHostState.showSnackbar(
                 "Произошла ошибка при загрузке",
@@ -230,8 +241,12 @@ fun CustomToolbar(
                         }
                     }
                 }
+
                 else -> {
-                    Log.d("Doing", "im here" + successDownloading.toString() + wasConnectedOnce.toString())
+                    Log.d(
+                        "Doing",
+                        "im here" + successDownloading.toString() + wasConnectedOnce.toString()
+                    )
                     Column(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -249,14 +264,15 @@ fun CustomToolbar(
 }
 
 
-
-
 @Composable
 fun CurrencyCard(currency: Currency, isUSD: Boolean, navController: NavHostController) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { navController.navigate("CurrencyInfoScreen") },
+            .clickable {
+                Log.d("Doing", currency.id + "  " + currency.image)
+                navController.navigate("CurrencyInfoScreen/${currency.id}/${Uri.encode(currency.image)}")
+            },
         verticalAlignment = Alignment.CenterVertically,
 
         ) {
@@ -283,7 +299,7 @@ fun CurrencyCard(currency: Currency, isUSD: Boolean, navController: NavHostContr
         else
             currentPrice = "₽ $currentPrice"
 
-        Column(  horizontalAlignment = Alignment.End) {
+        Column(horizontalAlignment = Alignment.End) {
             Text(text = currentPrice, color = Color.Black)
             Text(text = pricePercentage, color = color)
         }
@@ -307,12 +323,48 @@ fun ChipSwitch(currency: String, isSelected: Boolean, onClick: () -> Unit) {
         )
     }
 }
+@Composable
+fun CurrencyInfoLogic(
+    viewModel: MainViewModel,
+    context: Context,
+    navController: NavHostController,
+    id: String,
+    image: String
+) {
+    val networkStatus = NetworkStatus(context)
+    val currency by viewModel.getCurrencyInfo().observeAsState(initial = CurrencyInfo("Loading", "Info", "now"))
+
+    // Загрузка данных при монтировании компонента
+    LaunchedEffect(id) {
+        if (networkStatus.isConnected()) {
+            viewModel.loadCurrencyInfo(id)
+        }
+    }
+
+    val onRetry = {
+        viewModel.loadCurrencyInfo(id)
+    }
+
+    CurrencyInfoScreen(
+        navController,
+        currency,
+        image,
+        onRetry,
+        networkStatus.isConnected()
+    )
+}
+
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CurrencyInfoScreen(navController: NavHostController,
-                       currency: Currency){
+fun CurrencyInfoScreen(
+    navController: NavHostController,
+    currency: CurrencyInfo,
+    image:String,
+    onRetry: () -> Unit,
+    isConnected: Boolean
+) {
     Scaffold(
         topBar = @Composable {
             TopAppBar(
@@ -334,7 +386,7 @@ fun CurrencyInfoScreen(navController: NavHostController,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            currency.name,
+                            currency.id,
                             color = Color.Black,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -343,9 +395,76 @@ fun CurrencyInfoScreen(navController: NavHostController,
             )
         }
     ) {
-        Column {
+        when{
+            isConnected->
+            {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(image),
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Text(
+                        "Описание",
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    Text(
+                        currency.description,
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Категории",
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    Text(
+                        currency.categories,
+                        color = Color.Black,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 16.sp
+                    )
+
+                }
+
+            }
+            !isConnected->{
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .wrapContentSize(Alignment.Center),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bitcoin_image),
+                        contentDescription = "bitcoin image"
+                    )
+                    Text(text = "Произошла какая-то ошибка :(\nПопробуем снова?")
+                    Button(
+                        onClick = onRetry,
+                        colors = ButtonDefaults.buttonColors(
+                            contentColor = Color.White,
+                            containerColor = Color(0xFFFFC107)
+                        )
+                    ) {
+                        Text(text = "Попробовать")
+                    }
+                }
+            }
 
         }
+
+
     }
 }
 

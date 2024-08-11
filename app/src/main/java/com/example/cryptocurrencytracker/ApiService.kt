@@ -1,6 +1,7 @@
 package com.example.cryptocurrencytracker
 
 import retrofit2.http.GET
+import retrofit2.http.Path
 
 public interface ApiService {
     @GET("coins/markets?vs_currency=usd")
@@ -8,5 +9,8 @@ public interface ApiService {
 
     @GET("coins/markets?vs_currency=rub")
     suspend fun loadRUBResponse(): List<Currency>
+
+    @GET("coins/{id}}")
+    suspend fun loadCurrencyInfo(@Path("id") currencyId: String): CurrencyInfo
 
 }
