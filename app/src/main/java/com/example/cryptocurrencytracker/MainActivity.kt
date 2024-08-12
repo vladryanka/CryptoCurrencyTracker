@@ -319,7 +319,7 @@ fun CurrencyCard(currency: Currency, isUSD: Boolean, navController: NavHostContr
             Text(text = currency.symbol.uppercase(), color = Color.Gray)
         }
         Spacer(modifier = Modifier.width(16.dp))
-        var color: Color
+        val color: Color
         var pricePercentage = currency.priceChangePercentage24h.toString()
         if (currency.priceChangePercentage24h > 0) {
             color = Color.Green
