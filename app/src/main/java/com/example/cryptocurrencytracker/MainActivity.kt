@@ -1,17 +1,20 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.cryptocurrencytracker
 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,7 +33,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +65,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.cryptocurrencytracker.ui.theme.CryptoCurrencyTrackerTheme
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import kotlinx.coroutines.launch
 
 
 class MainActivity : ComponentActivity() {
@@ -110,7 +117,6 @@ fun CurrencySwitcherApp(
 
     var isUsdSelected by remember { mutableStateOf(true) }
     val successDownload by viewModel.getSuccessfulDownload().observeAsState(initial = false)
-    var wasConnectedOnce by remember { mutableStateOf(false) }
 
     if (networkStatus.isConnected()) {
         if (!successDownload) {
@@ -122,7 +128,6 @@ fun CurrencySwitcherApp(
     val onRetry = {
         viewModel.loadUsd()
         viewModel.loadRub()
-        wasConnectedOnce = true
     }
 
     CustomToolbar(
@@ -131,12 +136,13 @@ fun CurrencySwitcherApp(
             isUsdSelected = selectedCurrency == "USD"
         },
         successDownloading = successDownload,
-        onRetry = onRetry, wasConnectedOnce,
-        navController
+        onRetry,networkStatus.isConnected(),
+        navController = navController
     )
 }
 
 
+@SuppressLint("CoroutineCreationDuringComposition")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomToolbar(
@@ -144,28 +150,18 @@ fun CustomToolbar(
     onChipSelected: (String) -> Unit,
     successDownloading: Boolean,
     onRetry: () -> Unit,
-    wasConnectedOnce: Boolean,
+    isConnected: Boolean,
     navController: NavHostController
 ) {
     var selectedCurrency by remember { mutableStateOf("USD") }
     var isUSD by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(successDownloading, wasConnectedOnce) {
-        if (!successDownloading && wasConnectedOnce) {
-            snackbarHostState.showSnackbar(
-                "Произошла ошибка при загрузке",
-                withDismissAction = true,
-                duration = SnackbarDuration.Short
-            )
-        }
-    }
+    val scope = rememberCoroutineScope()
 
     SwipeRefresh(
         state = rememberSwipeRefreshState(isRefreshing = refreshing),
         onRefresh = {
-            Log.d("Doing", successDownloading.toString() + wasConnectedOnce.toString())
             refreshing = true
             onRetry()
             refreshing = false
@@ -205,7 +201,49 @@ fun CustomToolbar(
             )
 
             when {
-                successDownloading -> {
+                successDownloading && !isConnected->{
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        LazyColumn(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxSize()
+                        ) {
+                            itemsIndexed(currencyList) { _, item ->
+                                CurrencyCard(item, isUSD, navController)
+                            }
+                        }
+                        SnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                            snackbar = { data ->
+                                Snackbar(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.Red),
+                                    action = {
+                                    },
+                                    content = {
+                                        Text(text = "Произошла ошибка при загрузке", color = Color.White)
+                                    }
+                                )
+                            }
+                        )
+                    }
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            "Произошла ошибка при загрузке",
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+
+                }
+
+                successDownloading-> {
                     LazyColumn(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
@@ -217,7 +255,7 @@ fun CustomToolbar(
                     }
                 }
 
-                !wasConnectedOnce -> {
+                !successDownloading&&!isConnected -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -241,12 +279,7 @@ fun CustomToolbar(
                         }
                     }
                 }
-
-                else -> {
-                    Log.d(
-                        "Doing",
-                        "im here" + successDownloading.toString() + wasConnectedOnce.toString()
-                    )
+                else ->{
                     Column(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -270,7 +303,6 @@ fun CurrencyCard(currency: Currency, isUSD: Boolean, navController: NavHostContr
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                Log.d("Doing", currency.id + "  " + currency.image)
                 navController.navigate("CurrencyInfoScreen/${currency.id}/${Uri.encode(currency.image)}")
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -332,9 +364,13 @@ fun CurrencyInfoLogic(
     image: String
 ) {
     val networkStatus = NetworkStatus(context)
-    val currency by viewModel.getCurrencyInfo().observeAsState(initial = CurrencyInfo("Loading", "Info", "now"))
+    val currency by viewModel.getCurrencyInfo()
+        .observeAsState(
+            initial = CurrencyInfo("Loading", listOf("item1"),
+                Description("now"))
+        )
+    val successDownload by viewModel.getSuccessfulDownload().observeAsState(initial = false)
 
-    // Загрузка данных при монтировании компонента
     LaunchedEffect(id) {
         if (networkStatus.isConnected()) {
             viewModel.loadCurrencyInfo(id)
@@ -350,7 +386,9 @@ fun CurrencyInfoLogic(
         currency,
         image,
         onRetry,
-        networkStatus.isConnected()
+        networkStatus.isConnected(),
+        id,
+        successDownload
     )
 }
 
@@ -363,7 +401,9 @@ fun CurrencyInfoScreen(
     currency: CurrencyInfo,
     image:String,
     onRetry: () -> Unit,
-    isConnected: Boolean
+    isConnected: Boolean,
+    id:String,
+    successDownload:Boolean
 ) {
     Scaffold(
         topBar = @Composable {
@@ -386,7 +426,7 @@ fun CurrencyInfoScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            currency.id,
+                            id.capitalize(),
                             color = Color.Black,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -396,47 +436,19 @@ fun CurrencyInfoScreen(
         }
     ) {
         when{
-            isConnected->
-            {
+            isConnected&&!successDownload-> {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Image(
-                        painter = rememberAsyncImagePainter(image),
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp)
+                    CircularProgressIndicator(
+                        color = Color(0xFFFFC107),
+                        modifier = Modifier.size(48.dp)
                     )
-                    Text(
-                        "Описание",
-                        color = Color.Black,
-                        modifier = Modifier.fillMaxWidth(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                    Text(
-                        currency.description,
-                        color = Color.Black,
-                        modifier = Modifier.fillMaxWidth(),
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Категории",
-                        color = Color.Black,
-                        modifier = Modifier.fillMaxWidth(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                    Text(
-                        currency.categories,
-                        color = Color.Black,
-                        modifier = Modifier.fillMaxWidth(),
-                        fontSize = 16.sp
-                    )
-
                 }
-
             }
+
             !isConnected->{
                 Column(
                     modifier = Modifier
@@ -460,6 +472,50 @@ fun CurrencyInfoScreen(
                         Text(text = "Попробовать")
                     }
                 }
+            }
+            else ->
+            {
+                LazyColumn(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(top = 64.dp),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    item {
+                        Image(
+                            painter = rememberAsyncImagePainter(image),
+                            contentDescription = null,
+                            modifier = Modifier.size(90.dp)
+                        )
+                        Text(
+                            "Описание",
+                            color = Color.Black,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        Text(
+                            currency.description.englishDescription,
+                            color = Color.Black,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Категории",
+                            color = Color.Black,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        Text(
+                            currency.categories.joinToString(", "),
+                            color = Color.Black,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
             }
 
         }

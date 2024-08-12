@@ -2,7 +2,6 @@ package com.example.cryptocurrencytracker
 
 import android.app.Application
 import android.util.Log
-import androidx.compose.runtime.currentCompositionErrors
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -11,28 +10,33 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var usdList: MutableLiveData<List<Currency>> = MutableLiveData()
     private var rubList: MutableLiveData<List<Currency>> = MutableLiveData()
     private var successfulDownload: MutableLiveData<Boolean> = MutableLiveData()
     private val apiFactory: ApiFactory = ApiFactory()
-    private var currencyInfo:MutableLiveData<CurrencyInfo> = MutableLiveData()
+    private var currencyInfo: MutableLiveData<CurrencyInfo> = MutableLiveData()
 
-    public fun getUsdList(): LiveData<List<Currency>> {
+    fun getUsdList(): LiveData<List<Currency>> {
         return usdList
     }
-    public fun getCurrencyInfo(): LiveData<CurrencyInfo>{
+
+
+     fun getCurrencyInfo(): LiveData<CurrencyInfo> {
         return currencyInfo
     }
-    public fun getRubList(): LiveData<List<Currency>> {
+
+     fun getRubList(): LiveData<List<Currency>> {
         return rubList
     }
-    public fun getSuccessfulDownload():LiveData<Boolean>{
+
+     fun getSuccessfulDownload(): LiveData<Boolean> {
         return successfulDownload
     }
 
-    fun loadUsd(){
+    fun loadUsd() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -41,25 +45,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 successfulDownload.postValue(true)
                 usdList.postValue(response)
 
-            } catch (error: Throwable) {
-                successfulDownload.postValue(false)
+            } catch (error: HttpException) {
                 Log.d("Doing", error.toString())
             }
         }
     }
 
-    fun loadCurrencyInfo(id:String){
+    fun loadCurrencyInfo(id: String) {
         viewModelScope.launch {
             try {
                 val response = apiFactory.apiService.loadCurrencyInfo(id)
+                successfulDownload.postValue(true)
                 currencyInfo.postValue(response)
-                Log.d("Doing", currencyInfo.toString())
-            } catch (error: Throwable) {
-                Log.d("Doing", error.toString())
+            } catch (_: Throwable) {
             }
         }
     }
-    fun loadRub(){
+
+    fun loadRub() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -69,9 +72,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 rubList.postValue(response)
 
 
-            } catch (error: Throwable) {
-                successfulDownload.postValue(false)
-                Log.d("Doing", error.toString())
+            } catch (error: HttpException) {
+                    Log.d("Doing", error.toString())
+
             }
         }
     }
